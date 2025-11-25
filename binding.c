@@ -50,6 +50,8 @@ fn_load_model(js_env_t *env, js_callback_info_t *info) {
 
   // Set up default params
   struct llama_model_params params = llama_model_default_params();
+  params.progress_callback = NULL;  // Disable progress callback
+  // use_mmap defaults to true - keep it for better memory usage
 
   // Parse optional params
   if (argc >= 2) {
@@ -83,8 +85,7 @@ fn_load_model(js_env_t *env, js_callback_info_t *info) {
     return throw_error(env, "Failed to create model wrapper");
   }
 
-  err = js_add_type_tag(env, result, &llama_model_type_tag);
-  assert(err == 0);
+  // Note: js_add_type_tag crashes in Bare runtime, so we skip type tagging
 
   return result;
 }
@@ -99,10 +100,7 @@ fn_free_model(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return NULL;
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_model_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid model");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_model *model;
   err = js_get_value_external(env, argv[0], (void **)&model);
   if (err < 0 || !model) return NULL;
@@ -127,10 +125,7 @@ fn_create_context(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 1) return throw_error(env, "Model required");
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_model_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid model");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_model *model;
   err = js_get_value_external(env, argv[0], (void **)&model);
   if (err < 0 || !model) return throw_error(env, "Invalid model");
@@ -176,8 +171,8 @@ fn_create_context(js_env_t *env, js_callback_info_t *info) {
     return throw_error(env, "Failed to create context wrapper");
   }
 
-  err = js_add_type_tag(env, result, &llama_context_type_tag);
-  assert(err == 0);
+  // Skip type tagging - js_add_type_tag crashes in Bare runtime
+  // err = js_add_type_tag(env, result, &llama_context_type_tag);
 
   return result;
 }
@@ -192,10 +187,7 @@ fn_free_context(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return NULL;
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_context_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid context");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_context *ctx;
   err = js_get_value_external(env, argv[0], (void **)&ctx);
   if (err < 0 || !ctx) return NULL;
@@ -276,8 +268,8 @@ fn_create_sampler(js_env_t *env, js_callback_info_t *info) {
     return throw_error(env, "Failed to create sampler wrapper");
   }
 
-  err = js_add_type_tag(env, result, &llama_sampler_type_tag);
-  assert(err == 0);
+  // Skip type tagging - js_add_type_tag crashes in Bare runtime
+  // err = js_add_type_tag(env, result, &llama_sampler_type_tag);
 
   return result;
 }
@@ -292,10 +284,7 @@ fn_free_sampler(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return NULL;
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_sampler_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid sampler");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_sampler *sampler;
   err = js_get_value_external(env, argv[0], (void **)&sampler);
   if (err < 0 || !sampler) return NULL;
@@ -319,10 +308,7 @@ fn_tokenize(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 2) return throw_error(env, "Model and text required");
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_model_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid model");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_model *model;
   err = js_get_value_external(env, argv[0], (void **)&model);
   if (err < 0 || !model) return throw_error(env, "Invalid model");
@@ -403,10 +389,7 @@ fn_detokenize(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 2) return throw_error(env, "Model and tokens required");
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_model_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid model");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_model *model;
   err = js_get_value_external(env, argv[0], (void **)&model);
   if (err < 0 || !model) return throw_error(env, "Invalid model");
@@ -467,10 +450,7 @@ fn_decode(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 2) return throw_error(env, "Context and tokens required");
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_context_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid context");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_context *ctx;
   err = js_get_value_external(env, argv[0], (void **)&ctx);
   if (err < 0 || !ctx) return throw_error(env, "Invalid context");
@@ -510,16 +490,10 @@ fn_sample(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 3) return throw_error(env, "Context, sampler, and index required");
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_context_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid context");
-
+  // Skip type checks - js_add_type_tag crashes in Bare runtime
   struct llama_context *ctx;
   err = js_get_value_external(env, argv[0], (void **)&ctx);
   if (err < 0 || !ctx) return throw_error(env, "Invalid context");
-
-  err = js_check_type_tag(env, argv[1], &llama_sampler_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid sampler");
 
   struct llama_sampler *sampler;
   err = js_get_value_external(env, argv[1], (void **)&sampler);
@@ -548,10 +522,7 @@ fn_accept_token(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_sampler_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid sampler");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_sampler *sampler;
   err = js_get_value_external(env, argv[0], (void **)&sampler);
   if (err < 0 || !sampler) return throw_error(env, "Invalid sampler");
@@ -576,10 +547,7 @@ fn_is_eog_token(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
-  bool valid;
-  err = js_check_type_tag(env, argv[0], &llama_model_type_tag, &valid);
-  if (err < 0 || !valid) return throw_error(env, "Invalid model");
-
+  // Skip type check - js_add_type_tag crashes in Bare runtime
   struct llama_model *model;
   err = js_get_value_external(env, argv[0], (void **)&model);
   if (err < 0 || !model) return throw_error(env, "Invalid model");

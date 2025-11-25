@@ -1,7 +1,8 @@
-const { LlamaModel, LlamaContext, LlamaSampler, generate } = require('.')
+const { LlamaModel, LlamaContext, LlamaSampler, generate } = require('..')
 
-// Path to your GGUF model file
-const modelPath = process.argv[2] || './model.gguf'
+// Path to your GGUF model file - pass after -- (e.g., bare example.js -- model.gguf)
+const args = global.Bare.argv.slice(global.Bare.argv.indexOf('--') + 1)
+const modelPath = args[0] || './model.gguf'
 
 console.log('Loading model:', modelPath)
 const model = new LlamaModel(modelPath, {

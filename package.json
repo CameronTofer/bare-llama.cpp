@@ -9,9 +9,11 @@
     "prebuilds"
   ],
   "scripts": {
-    "configure": "cmake -S . -B build -D CMAKE_BUILD_TYPE=Release",
-    "build": "cmake --build build",
-    "prebuild": "npm run configure && npm run build"
+    "generate": "bare-make generate",
+    "build": "bare-make build",
+    "install": "bare-make install",
+    "prebuild": "bare-make generate && bare-make build && bare-make install",
+    "clean": "rm -rf build prebuilds"
   },
   "devDependencies": {
     "cmake-bare": "^1.0.0"
