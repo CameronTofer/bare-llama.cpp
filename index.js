@@ -1,0 +1,98 @@
+const binding = require.addon('.')
+
+class LlamaModel {
+  constructor (path, opts = {}) {
+    this._handle = binding.loadModel(path, opts)
+  }
+
+  tokenize (text, addBos = true) {
+    return binding.tokenize(this._handle, text, addBos)
+  }
+
+  detokenize (tokens) {
+    return binding.detokenize(this._handle, tokens)
+  }
+
+  isEogToken (token) {
+    return binding.isEogToken(this._handle, token)
+  }
+
+  free () {
+    if (this._handle) {
+      binding.freeModel(this._handle)
+      this._handle = null
+    }
+  }
+}
+
+class LlamaContext {
+  constructor (model, opts = {}) {
+    if (!(model instanceof LlamaModel)) {
+      throw new Error('First argument must be a LlamaModel')
+    }
+    this._model = model
+    this._handle = binding.createContext(model._handle, opts)
+  }
+
+  decode (tokens) {
+    binding.decode(this._handle, tokens)
+  }
+
+  free () {
+    if (this._handle) {
+      binding.freeContext(this._handle)
+      this._handle = null
+    }
+  }
+}
+
+class LlamaSampler {
+  constructor (opts = {}) {
+    this._handle = binding.createSampler(opts)
+  }
+
+  sample (ctx, idx = -1) {
+    if (!(ctx instanceof LlamaContext)) {
+      throw new Error('First argument must be a LlamaContext')
+    }
+    return binding.sample(ctx._handle, this._handle, idx)
+  }
+
+  accept (token) {
+    binding.acceptToken(this._handle, token)
+  }
+
+  free () {
+    if (this._handle) {
+      binding.freeSampler(this._handle)
+      this._handle = null
+    }
+  }
+}
+
+function generate (model, ctx, sampler, prompt, maxTokens = 128) {
+  const tokens = model.tokenize(prompt, true)
+  ctx.decode(tokens)
+
+  const generated = []
+  for (let i = 0; i < maxTokens; i++) {
+    const token = sampler.sample(ctx, -1)
+    if (model.isEogToken(token)) break
+
+    sampler.accept(token)
+    generated.push(token)
+
+    // Decode single token for next iteration
+    ctx.decode(new Int32Array([token]))
+  }
+
+  return model.detokenize(new Int32Array(generated))
+}
+
+module.exports = {
+  LlamaModel,
+  LlamaContext,
+  LlamaSampler,
+  generate,
+  binding
+}

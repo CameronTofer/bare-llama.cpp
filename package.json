@@ -1,0 +1,19 @@
+{
+  "name": "bare-llama",
+  "version": "0.1.0",
+  "description": "llama.cpp bindings for Bare",
+  "main": "index.js",
+  "addon": true,
+  "files": [
+    "index.js",
+    "prebuilds"
+  ],
+  "scripts": {
+    "configure": "cmake -S . -B build -D CMAKE_BUILD_TYPE=Release",
+    "build": "cmake --build build",
+    "prebuild": "npm run configure && npm run build"
+  },
+  "devDependencies": {
+    "cmake-bare": "^1.0.0"
+  }
+}
