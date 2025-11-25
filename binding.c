@@ -563,6 +563,39 @@ fn_is_eog_token(js_env_t *env, js_callback_info_t *info) {
   return result;
 }
 
+// Log level control
+static int g_log_level = 2;  // 0=off, 1=errors only, 2=all (default)
+
+static void quiet_log_callback(enum ggml_log_level level, const char *text, void *user_data) {
+  (void)user_data;
+  if (g_log_level == 0) return;
+  if (g_log_level == 1 && level > GGML_LOG_LEVEL_ERROR) return;
+  fprintf(stderr, "%s", text);
+}
+
+// setLogLevel(level: number): void  - 0=off, 1=errors, 2=all
+static js_value_t *
+fn_set_log_level(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 1;
+  js_value_t *argv[1];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return NULL;
+
+  int32_t level = 2;
+  if (argc >= 1) {
+    js_get_value_int32(env, argv[0], &level);
+  }
+
+  g_log_level = level;
+  llama_log_set(quiet_log_callback, NULL);
+
+  js_value_t *undefined;
+  js_get_undefined(env, &undefined);
+  return undefined;
+}
+
 // Finalizers
 static void finalize_model(js_env_t *env, void *data, void *hint) {
   (void)env; (void)hint;
@@ -607,6 +640,7 @@ addon_exports(js_env_t *env, js_value_t *exports) {
   EXPORT_FUNCTION("sample", fn_sample);
   EXPORT_FUNCTION("acceptToken", fn_accept_token);
   EXPORT_FUNCTION("isEogToken", fn_is_eog_token);
+  EXPORT_FUNCTION("setLogLevel", fn_set_log_level);
 
   return exports;
 }

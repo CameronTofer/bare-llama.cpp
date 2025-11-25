@@ -89,10 +89,22 @@ function generate (model, ctx, sampler, prompt, maxTokens = 128) {
   return model.detokenize(new Int32Array(generated))
 }
 
+// Log level: 0=off, 1=errors only, 2=all (default)
+function setLogLevel (level) {
+  binding.setLogLevel(level)
+}
+
+// Convenience function to suppress all llama.cpp output
+function setQuiet (quiet = true) {
+  binding.setLogLevel(quiet ? 0 : 2)
+}
+
 module.exports = {
   LlamaModel,
   LlamaContext,
   LlamaSampler,
   generate,
+  setLogLevel,
+  setQuiet,
   binding
 }
