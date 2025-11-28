@@ -5,6 +5,8 @@
 #include <js.h>
 #include <utf.h>
 #include <llama.h>
+#include "sampling.h"
+#include "log.h"
 
 // Custom type tags for prevent type confusion
 static js_type_tag_t llama_model_type_tag = {0x4c4c414d41, 0x4d4f44454c};  // "LLAMA MODEL"
@@ -39,7 +41,7 @@ fn_load_model(js_env_t *env, js_callback_info_t *info) {
   err = js_get_value_string_utf8(env, argv[0], NULL, 0, &path_len);
   if (err < 0) return throw_error(env, "Invalid model path");
 
-  char *path = malloc(path_len + 1);
+  char *path = (char *)malloc(path_len + 1);
   if (!path) return throw_error(env, "Memory allocation failed");
 
   err = js_get_value_string_utf8(env, argv[0], (utf8_t *)path, path_len + 1, NULL);
@@ -199,15 +201,52 @@ fn_free_context(js_env_t *env, js_callback_info_t *info) {
   return null_val;
 }
 
-// createSampler(params?: object): Sampler
+// Helper to get string property
+static char *get_string_property(js_env_t *env, js_value_t *opts, const char *name) {
+  int err;
+  bool has_prop;
+  js_value_t *val;
+
+  err = js_has_named_property(env, opts, name, &has_prop);
+  if (err != 0 || !has_prop) return NULL;
+
+  err = js_get_named_property(env, opts, name, &val);
+  if (err != 0) return NULL;
+
+  size_t len;
+  err = js_get_value_string_utf8(env, val, NULL, 0, &len);
+  if (err != 0) return NULL;
+
+  char *str = (char *)malloc(len + 1);
+  if (!str) return NULL;
+
+  err = js_get_value_string_utf8(env, val, (utf8_t *)str, len + 1, NULL);
+  if (err != 0) {
+    free(str);
+    return NULL;
+  }
+
+  return str;
+}
+
+// createSampler(model: Model, params?: object): Sampler
 static js_value_t *
 fn_create_sampler(js_env_t *env, js_callback_info_t *info) {
   int err;
-  size_t argc = 1;
-  js_value_t *argv[1];
+  size_t argc = 2;
+  js_value_t *argv[2];
 
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  if (argc < 1) return throw_error(env, "Model required");
+
+  // Get model for vocab access (needed for grammar)
+  struct llama_model *model;
+  err = js_get_value_external(env, argv[0], (void **)&model);
+  if (err < 0 || !model) return throw_error(env, "Invalid model");
+
+  const struct llama_vocab *vocab = llama_model_get_vocab(model);
 
   struct llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
   struct llama_sampler *sampler = llama_sampler_chain_init(sparams);
@@ -217,8 +256,12 @@ fn_create_sampler(js_env_t *env, js_callback_info_t *info) {
   int32_t top_k = 40;
   float top_p = 0.95f;
 
-  if (argc >= 1) {
-    js_value_t *opts = argv[0];
+  // Grammar options (llguidance)
+  char *json_grammar = NULL;
+  char *lark_grammar = NULL;
+
+  if (argc >= 2) {
+    js_value_t *opts = argv[1];
     js_value_t *val;
     bool has_prop;
 
@@ -249,9 +292,28 @@ fn_create_sampler(js_env_t *env, js_callback_info_t *info) {
         top_p = (float)d;
       }
     }
+
+    // Grammar options (llguidance): json or lark
+    json_grammar = get_string_property(env, opts, "json");
+    lark_grammar = get_string_property(env, opts, "lark");
   }
 
-  // Build sampler chain
+  // Add grammar sampler first if specified (must filter logits before sampling)
+  if (json_grammar) {
+    struct llama_sampler *grammar = llama_sampler_init_llg(vocab, "json", json_grammar);
+    if (grammar) {
+      llama_sampler_chain_add(sampler, grammar);
+    }
+    free(json_grammar);
+  } else if (lark_grammar) {
+    struct llama_sampler *grammar = llama_sampler_init_llg(vocab, "lark", lark_grammar);
+    if (grammar) {
+      llama_sampler_chain_add(sampler, grammar);
+    }
+    free(lark_grammar);
+  }
+
+  // Build sampler chain (after grammar filtering)
   if (temp > 0) {
     llama_sampler_chain_add(sampler, llama_sampler_init_top_k(top_k));
     llama_sampler_chain_add(sampler, llama_sampler_init_top_p(top_p, 1));
@@ -318,7 +380,7 @@ fn_tokenize(js_env_t *env, js_callback_info_t *info) {
   err = js_get_value_string_utf8(env, argv[1], NULL, 0, &text_len);
   if (err < 0) return throw_error(env, "Invalid text");
 
-  char *text = malloc(text_len + 1);
+  char *text = (char *)malloc(text_len + 1);
   if (!text) return throw_error(env, "Memory allocation failed");
 
   err = js_get_value_string_utf8(env, argv[1], (utf8_t *)text, text_len + 1, NULL);
@@ -336,7 +398,7 @@ fn_tokenize(js_env_t *env, js_callback_info_t *info) {
 
   // Estimate token count (generous)
   int32_t max_tokens = text_len + 16;
-  llama_token *tokens = malloc(max_tokens * sizeof(llama_token));
+  llama_token *tokens = (llama_token *)malloc(max_tokens * sizeof(llama_token));
   if (!tokens) {
     free(text);
     return throw_error(env, "Memory allocation failed");
@@ -348,7 +410,7 @@ fn_tokenize(js_env_t *env, js_callback_info_t *info) {
   if (n_tokens < 0) {
     // Need more space
     max_tokens = -n_tokens;
-    tokens = realloc(tokens, max_tokens * sizeof(llama_token));
+    tokens = (llama_token *)realloc(tokens, max_tokens * sizeof(llama_token));
     if (!tokens) return throw_error(env, "Memory allocation failed");
     n_tokens = llama_tokenize(vocab, text, text_len, tokens, max_tokens, add_bos, true);
   }
@@ -411,7 +473,7 @@ fn_detokenize(js_env_t *env, js_callback_info_t *info) {
 
   // Build output string
   size_t buf_size = length * 16;  // Estimate
-  char *buf = malloc(buf_size);
+  char *buf = (char *)malloc(buf_size);
   if (!buf) return throw_error(env, "Memory allocation failed");
 
   size_t offset = 0;
@@ -421,7 +483,7 @@ fn_detokenize(js_env_t *env, js_callback_info_t *info) {
     if (n > 0) {
       if (offset + n >= buf_size) {
         buf_size *= 2;
-        buf = realloc(buf, buf_size);
+        buf = (char *)realloc(buf, buf_size);
         if (!buf) return throw_error(env, "Memory allocation failed");
       }
       memcpy(buf + offset, piece, n);
@@ -568,8 +630,15 @@ static int g_log_level = 2;  // 0=off, 1=errors only, 2=all (default)
 
 static void quiet_log_callback(enum ggml_log_level level, const char *text, void *user_data) {
   (void)user_data;
+  (void)level;
+  // Debug: uncomment to see what's being logged
+  // fprintf(stderr, "[LOG %d/%d] %s", g_log_level, level, text);
   if (g_log_level == 0) return;
-  if (g_log_level == 1 && level > GGML_LOG_LEVEL_ERROR) return;
+  if (g_log_level == 1) {
+    // In errors-only mode, suppress llguidance completion messages
+    if (strncmp(text, "llg error:", 10) == 0) return;
+    if (level > GGML_LOG_LEVEL_ERROR) return;
+  }
   fprintf(stderr, "%s", text);
 }
 
@@ -590,6 +659,13 @@ fn_set_log_level(js_env_t *env, js_callback_info_t *info) {
 
   g_log_level = level;
   llama_log_set(quiet_log_callback, NULL);
+
+  // Also control common library logging
+  if (level == 0) {
+    common_log_pause(common_log_main());
+  } else {
+    common_log_resume(common_log_main());
+  }
 
   js_value_t *undefined;
   js_get_undefined(env, &undefined);
@@ -625,8 +701,9 @@ static js_value_t *
 addon_exports(js_env_t *env, js_value_t *exports) {
   int err;
 
-  // Initialize llama backend
+  // Initialize llama backend and set default log callback
   llama_backend_init();
+  llama_log_set(quiet_log_callback, NULL);
 
   EXPORT_FUNCTION("loadModel", fn_load_model);
   EXPORT_FUNCTION("freeModel", fn_free_model);

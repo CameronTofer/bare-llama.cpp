@@ -16,7 +16,7 @@ const ctx = new LlamaContext(model, {
 })
 
 console.log('Creating sampler...')
-const sampler = new LlamaSampler({
+const sampler = new LlamaSampler(model, {
   temp: 0.7,
   topK: 40,
   topP: 0.95

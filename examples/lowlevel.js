@@ -11,7 +11,7 @@ console.log('Creating context...')
 const ctx = new LlamaContext(model, { contextSize: 2048 })
 
 console.log('Creating sampler...')
-const sampler = new LlamaSampler({ temp: 0.8 })
+const sampler = new LlamaSampler(model, { temp: 0.8 })
 
 // Tokenize prompt
 const prompt = 'Hello, world!'

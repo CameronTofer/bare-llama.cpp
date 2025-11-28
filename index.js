@@ -47,8 +47,11 @@ class LlamaContext {
 }
 
 class LlamaSampler {
-  constructor (opts = {}) {
-    this._handle = binding.createSampler(opts)
+  constructor (model, opts = {}) {
+    if (!(model instanceof LlamaModel)) {
+      throw new Error('First argument must be a LlamaModel')
+    }
+    this._handle = binding.createSampler(model._handle, opts)
   }
 
   sample (ctx, idx = -1) {
