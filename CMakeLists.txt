@@ -13,6 +13,10 @@ set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
 set(LLAMA_LLGUIDANCE ON CACHE BOOL "" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
 
+if(ANDROID)
+  set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
+endif()
+
 add_subdirectory(vendor/llama.cpp)
 
 # Create the bare addon
