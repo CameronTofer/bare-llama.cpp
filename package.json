@@ -34,7 +34,11 @@
   ],
   "scripts": {
     "clean": "rm -rf build prebuilds",
-    "prebuild": "bare-make generate && bare-make build && bare-make install"
+    "prebuild": "bare-make generate && bare-make build && bare-make install",
+    "prebuild:ios": "npm run prebuild:ios-device && npm run prebuild:ios-sim-arm64 && npm run prebuild:ios-sim-x64",
+    "prebuild:ios-device": "rm -rf build && bare-make generate --platform ios --arch arm64 && bare-make build && bare-make install",
+    "prebuild:ios-sim-arm64": "rm -rf build && bare-make generate --platform ios --arch arm64 --simulator && bare-make build && bare-make install",
+    "prebuild:ios-sim-x64": "rm -rf build && bare-make generate --platform ios --arch x64 --simulator && bare-make build && bare-make install"
   },
   "devDependencies": {
     "cmake-bare": "^1.1.2"
