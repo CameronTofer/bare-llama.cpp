@@ -9,10 +9,6 @@
     "prebuilds"
   ],
   "scripts": {
-    "generate": "bare-make generate",
-    "build": "bare-make build",
-    "install": "bare-make install",
-    "prebuild": "bare-make generate && bare-make build && bare-make install",
     "clean": "rm -rf build prebuilds"
   },
   "devDependencies": {
