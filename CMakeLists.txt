@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(bare_llama C CXX)
-
 find_package(cmake-bare REQUIRED PATHS node_modules/cmake-bare)
+
+project(bare_llama C CXX)
 
 # Build llama.cpp as a static library
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
