@@ -80,7 +80,7 @@ jobs:
           PATH: C:\tools\msys64\usr\bin
         if: ${{ matrix.platform == 'win32' }}
       - run: npm install -g bare-runtime bare-make
-      - run: npm install --include=dev
+      - run: npm install
       - run: bare-make generate --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ matrix.flags }}
       - run: bare-make build
       - run: bare-make install
