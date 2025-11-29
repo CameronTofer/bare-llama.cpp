@@ -4,12 +4,37 @@
   "description": "llama.cpp bindings for Bare",
   "main": "index.js",
   "addon": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CameronTofer/bare-llama.cpp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CameronTofer/bare-llama.cpp/issues"
+  },
+  "homepage": "https://github.com/CameronTofer/bare-llama.cpp",
+  "keywords": [
+    "llama",
+    "llama.cpp",
+    "llm",
+    "ai",
+    "inference",
+    "bare",
+    "native",
+    "gpu",
+    "metal",
+    "cuda"
+  ],
+  "engines": {
+    "bare": ">=1.16.0"
+  },
   "files": [
     "index.js",
-    "prebuilds"
+    "prebuilds/*/*.bare"
   ],
   "scripts": {
-    "clean": "rm -rf build prebuilds"
+    "clean": "rm -rf build prebuilds",
+    "prebuild": "bare-make generate && bare-make build && bare-make install"
   },
   "devDependencies": {
     "cmake-bare": "^1.1.2"
