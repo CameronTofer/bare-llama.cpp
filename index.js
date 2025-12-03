@@ -17,6 +17,10 @@ class LlamaModel {
     return binding.isEogToken(this._handle, token)
   }
 
+  get embeddingDimension () {
+    return binding.getEmbeddingDimension(this._handle)
+  }
+
   free () {
     if (this._handle) {
       binding.freeModel(this._handle)
@@ -36,6 +40,10 @@ class LlamaContext {
 
   decode (tokens) {
     binding.decode(this._handle, tokens)
+  }
+
+  getEmbeddings (idx = -1) {
+    return binding.getEmbeddings(this._handle, idx)
   }
 
   free () {

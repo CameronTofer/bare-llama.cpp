@@ -161,6 +161,28 @@ fn_create_context(js_env_t *env, js_callback_info_t *info) {
         params.n_batch = (uint32_t)n;
       }
     }
+
+    // embeddings
+    err = js_has_named_property(env, opts, "embeddings", &has_prop);
+    if (err == 0 && has_prop) {
+      err = js_get_named_property(env, opts, "embeddings", &val);
+      if (err == 0) {
+        bool embd;
+        js_get_value_bool(env, val, &embd);
+        params.embeddings = embd;
+      }
+    }
+
+    // poolingType (0=unspecified, 1=none, 2=mean, 3=cls, 4=last, 5=rank)
+    err = js_has_named_property(env, opts, "poolingType", &has_prop);
+    if (err == 0 && has_prop) {
+      err = js_get_named_property(env, opts, "poolingType", &val);
+      if (err == 0) {
+        int32_t n;
+        js_get_value_int32(env, val, &n);
+        params.pooling_type = (enum llama_pooling_type)n;
+      }
+    }
   }
 
   struct llama_context *ctx = llama_init_from_model(model, params);
@@ -625,6 +647,76 @@ fn_is_eog_token(js_env_t *env, js_callback_info_t *info) {
   return result;
 }
 
+// getEmbeddingDimension(model: Model): number
+static js_value_t *
+fn_get_embedding_dimension(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 1;
+  js_value_t *argv[1];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  struct llama_model *model;
+  err = js_get_value_external(env, argv[0], (void **)&model);
+  if (err < 0 || !model) return throw_error(env, "Invalid model");
+
+  int32_t n_embd = llama_model_n_embd(model);
+
+  js_value_t *result;
+  err = js_create_int32(env, n_embd, &result);
+  if (err < 0) return throw_error(env, "Failed to create result");
+
+  return result;
+}
+
+// getEmbeddings(ctx: Context, idx: number): Float32Array
+// idx: sequence ID for pooled embeddings, or token index for non-pooled
+static js_value_t *
+fn_get_embeddings(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 2;
+  js_value_t *argv[2];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  if (argc < 2) return throw_error(env, "Context and index required");
+
+  struct llama_context *ctx;
+  err = js_get_value_external(env, argv[0], (void **)&ctx);
+  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+
+  int32_t idx;
+  err = js_get_value_int32(env, argv[1], &idx);
+  if (err < 0) return throw_error(env, "Invalid index");
+
+  // Try sequence embeddings first (for pooled embeddings)
+  // then fall back to token embeddings
+  float *embeddings = llama_get_embeddings_seq(ctx, idx >= 0 ? idx : 0);
+  if (!embeddings) {
+    embeddings = llama_get_embeddings_ith(ctx, idx);
+  }
+  if (!embeddings) return throw_error(env, "Failed to get embeddings (context may not have embeddings enabled)");
+
+  const struct llama_model *model = llama_get_model(ctx);
+  int32_t n_embd = llama_model_n_embd(model);
+
+  // Create Float32Array
+  js_value_t *array_buffer;
+  void *data;
+  err = js_create_arraybuffer(env, n_embd * sizeof(float), &data, &array_buffer);
+  if (err < 0) return throw_error(env, "Failed to create array buffer");
+
+  memcpy(data, embeddings, n_embd * sizeof(float));
+
+  js_value_t *result;
+  err = js_create_typedarray(env, js_float32array, n_embd, array_buffer, 0, &result);
+  if (err < 0) return throw_error(env, "Failed to create typed array");
+
+  return result;
+}
+
 // Log level control
 static int g_log_level = 2;  // 0=off, 1=errors only, 2=all (default)
 
@@ -717,6 +809,8 @@ addon_exports(js_env_t *env, js_value_t *exports) {
   EXPORT_FUNCTION("sample", fn_sample);
   EXPORT_FUNCTION("acceptToken", fn_accept_token);
   EXPORT_FUNCTION("isEogToken", fn_is_eog_token);
+  EXPORT_FUNCTION("getEmbeddingDimension", fn_get_embedding_dimension);
+  EXPORT_FUNCTION("getEmbeddings", fn_get_embeddings);
   EXPORT_FUNCTION("setLogLevel", fn_set_log_level);
 
   return exports;
