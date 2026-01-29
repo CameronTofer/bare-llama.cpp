@@ -34,6 +34,8 @@
   ],
   "scripts": {
     "clean": "rm -rf build prebuilds",
+    "update-llama": "git submodule update --remote vendor/llama.cpp",
+    "test": "bare examples/regression-test.js",
     "prebuild": "bare-make generate && bare-make build && bare-make install",
     "prebuild:ios": "npm run prebuild:ios-device && npm run prebuild:ios-sim-arm64 && npm run prebuild:ios-sim-x64",
     "prebuild:ios-device": "rm -rf build && bare-make generate --platform ios --arch arm64 && bare-make build && bare-make install",
