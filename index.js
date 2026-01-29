@@ -46,6 +46,10 @@ class LlamaContext {
     return binding.getEmbeddings(this._handle, idx)
   }
 
+  clearMemory () {
+    binding.clearMemory(this._handle)
+  }
+
   free () {
     if (this._handle) {
       binding.freeContext(this._handle)

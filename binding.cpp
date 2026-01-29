@@ -223,6 +223,30 @@ fn_free_context(js_env_t *env, js_callback_info_t *info) {
   return null_val;
 }
 
+// clearMemory(ctx: Context): void - Clear context memory for reuse
+static js_value_t *
+fn_clear_memory(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 1;
+  js_value_t *argv[1];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  struct llama_context *ctx;
+  err = js_get_value_external(env, argv[0], (void **)&ctx);
+  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+
+  llama_memory_t mem = llama_get_memory(ctx);
+  if (mem) {
+    llama_memory_clear(mem, true);
+  }
+
+  js_value_t *undefined;
+  js_get_undefined(env, &undefined);
+  return undefined;
+}
+
 // Helper to get string property
 static char *get_string_property(js_env_t *env, js_value_t *opts, const char *name) {
   int err;
@@ -801,6 +825,7 @@ addon_exports(js_env_t *env, js_value_t *exports) {
   EXPORT_FUNCTION("freeModel", fn_free_model);
   EXPORT_FUNCTION("createContext", fn_create_context);
   EXPORT_FUNCTION("freeContext", fn_free_context);
+  EXPORT_FUNCTION("clearMemory", fn_clear_memory);
   EXPORT_FUNCTION("createSampler", fn_create_sampler);
   EXPORT_FUNCTION("freeSampler", fn_free_sampler);
   EXPORT_FUNCTION("tokenize", fn_tokenize);
