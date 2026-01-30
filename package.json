@@ -44,6 +44,9 @@
     "prebuild:ios-sim-x64": "rm -rf build && bare-make generate --platform ios --arch x64 --simulator && bare-make build && bare-make install"
   },
   "devDependencies": {
+    "bare-fs": "^4.5.3",
+    "bare-os": "^3.6.2",
+    "bare-path": "^3.0.0",
     "cmake-bare": "^1.1.2"
   }
 }

@@ -21,6 +21,10 @@ class LlamaModel {
     return binding.getEmbeddingDimension(this._handle)
   }
 
+  get trainingContextSize () {
+    return binding.getTrainingContextSize(this._handle)
+  }
+
   free () {
     if (this._handle) {
       binding.freeModel(this._handle)
@@ -36,6 +40,10 @@ class LlamaContext {
     }
     this._model = model
     this._handle = binding.createContext(model._handle, opts)
+  }
+
+  get contextSize () {
+    return binding.getContextSize(this._handle)
   }
 
   decode (tokens) {

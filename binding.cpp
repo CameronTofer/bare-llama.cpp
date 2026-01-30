@@ -694,6 +694,52 @@ fn_get_embedding_dimension(js_env_t *env, js_callback_info_t *info) {
   return result;
 }
 
+// getTrainingContextSize(model: Model): number
+static js_value_t *
+fn_get_training_context_size(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 1;
+  js_value_t *argv[1];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  struct llama_model *model;
+  err = js_get_value_external(env, argv[0], (void **)&model);
+  if (err < 0 || !model) return throw_error(env, "Invalid model");
+
+  int32_t n_ctx_train = llama_model_n_ctx_train(model);
+
+  js_value_t *result;
+  err = js_create_int32(env, n_ctx_train, &result);
+  if (err < 0) return throw_error(env, "Failed to create result");
+
+  return result;
+}
+
+// getContextSize(ctx: Context): number
+static js_value_t *
+fn_get_context_size(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 1;
+  js_value_t *argv[1];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  struct llama_context *ctx;
+  err = js_get_value_external(env, argv[0], (void **)&ctx);
+  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+
+  uint32_t n_ctx = llama_n_ctx(ctx);
+
+  js_value_t *result;
+  err = js_create_uint32(env, n_ctx, &result);
+  if (err < 0) return throw_error(env, "Failed to create result");
+
+  return result;
+}
+
 // getEmbeddings(ctx: Context, idx: number): Float32Array
 // idx: sequence ID for pooled embeddings, or token index for non-pooled
 static js_value_t *
@@ -835,6 +881,8 @@ addon_exports(js_env_t *env, js_value_t *exports) {
   EXPORT_FUNCTION("acceptToken", fn_accept_token);
   EXPORT_FUNCTION("isEogToken", fn_is_eog_token);
   EXPORT_FUNCTION("getEmbeddingDimension", fn_get_embedding_dimension);
+  EXPORT_FUNCTION("getTrainingContextSize", fn_get_training_context_size);
+  EXPORT_FUNCTION("getContextSize", fn_get_context_size);
   EXPORT_FUNCTION("getEmbeddings", fn_get_embeddings);
   EXPORT_FUNCTION("setLogLevel", fn_set_log_level);
 
