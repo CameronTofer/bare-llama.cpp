@@ -47,6 +47,11 @@
     "bare-fs": "^4.5.3",
     "bare-os": "^3.6.2",
     "bare-path": "^3.0.0",
-    "cmake-bare": "^1.1.2"
+    "bare-signals": "^4.2.0",
+    "cmake-bare": "^1.1.2",
+    "corestore": "^6.18.4",
+    "hyperdrive": "^11.12.0",
+    "hyperswarm": "^4.8.4",
+    "paparam": "^1.10.0"
   }
 }
