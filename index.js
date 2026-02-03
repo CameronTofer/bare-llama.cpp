@@ -25,6 +25,14 @@ class LlamaModel {
     return binding.getTrainingContextSize(this._handle)
   }
 
+  getMeta (key) {
+    return binding.getModelMeta(this._handle, key)
+  }
+
+  get name () {
+    return this.getMeta('general.name')
+  }
+
   free () {
     if (this._handle) {
       binding.freeModel(this._handle)
@@ -122,6 +130,16 @@ function setQuiet (quiet = true) {
   binding.setLogLevel(quiet ? 0 : 2)
 }
 
+// Read GGUF metadata without loading the full model
+function readGgufMeta (path, key) {
+  return binding.readGgufMeta(path, key)
+}
+
+// Get model name from GGUF file
+function getModelName (path) {
+  return readGgufMeta(path, 'general.name')
+}
+
 module.exports = {
   LlamaModel,
   LlamaContext,
@@ -129,5 +147,7 @@ module.exports = {
   generate,
   setLogLevel,
   setQuiet,
+  readGgufMeta,
+  getModelName,
   binding
 }

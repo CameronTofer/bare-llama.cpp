@@ -5,6 +5,7 @@
 #include <js.h>
 #include <utf.h>
 #include <llama.h>
+#include <gguf.h>
 #include "sampling.h"
 #include "log.h"
 
@@ -35,6 +36,95 @@ static void finalize_sampler(js_env_t *env, void *data, void *hint);
 static js_value_t *throw_error(js_env_t *env, const char *msg) {
   js_throw_error(env, NULL, msg);
   return NULL;
+}
+
+// readGgufMeta(path: string, key: string): string | null
+// Reads GGUF metadata without loading the full model
+static js_value_t *
+fn_read_gguf_meta(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 2;
+  js_value_t *argv[2];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  if (argc < 2) return throw_error(env, "Path and key required");
+
+  // Get path
+  size_t path_len;
+  err = js_get_value_string_utf8(env, argv[0], NULL, 0, &path_len);
+  if (err < 0) return throw_error(env, "Invalid path");
+
+  char *path = (char *)malloc(path_len + 1);
+  if (!path) return throw_error(env, "Memory allocation failed");
+
+  err = js_get_value_string_utf8(env, argv[0], (utf8_t *)path, path_len + 1, NULL);
+  if (err < 0) {
+    free(path);
+    return throw_error(env, "Failed to read path");
+  }
+
+  // Get key
+  size_t key_len;
+  err = js_get_value_string_utf8(env, argv[1], NULL, 0, &key_len);
+  if (err < 0) {
+    free(path);
+    return throw_error(env, "Invalid key");
+  }
+
+  char *key = (char *)malloc(key_len + 1);
+  if (!key) {
+    free(path);
+    return throw_error(env, "Memory allocation failed");
+  }
+
+  err = js_get_value_string_utf8(env, argv[1], (utf8_t *)key, key_len + 1, NULL);
+  if (err < 0) {
+    free(path);
+    free(key);
+    return throw_error(env, "Failed to read key");
+  }
+
+  // Open GGUF file and read metadata
+  struct gguf_init_params params = { .no_alloc = true, .ctx = NULL };
+  struct gguf_context *gguf = gguf_init_from_file(path, params);
+  free(path);
+
+  if (!gguf) {
+    free(key);
+    js_value_t *null_val;
+    js_get_null(env, &null_val);
+    return null_val;
+  }
+
+  // Find the key
+  int key_id = gguf_find_key(gguf, key);
+  free(key);
+
+  if (key_id < 0) {
+    gguf_free(gguf);
+    js_value_t *null_val;
+    js_get_null(env, &null_val);
+    return null_val;
+  }
+
+  // Get value as string
+  const char *value = gguf_get_val_str(gguf, key_id);
+  if (!value) {
+    gguf_free(gguf);
+    js_value_t *null_val;
+    js_get_null(env, &null_val);
+    return null_val;
+  }
+
+  js_value_t *result;
+  err = js_create_string_utf8(env, (utf8_t *)value, strlen(value), &result);
+  gguf_free(gguf);
+
+  if (err < 0) return throw_error(env, "Failed to create string");
+
+  return result;
 }
 
 // loadModel(path: string, params?: object): Model
@@ -772,6 +862,57 @@ fn_get_embedding_dimension(js_env_t *env, js_callback_info_t *info) {
   return result;
 }
 
+// getModelMeta(model: Model, key: string): string | null
+static js_value_t *
+fn_get_model_meta(js_env_t *env, js_callback_info_t *info) {
+  int err;
+  size_t argc = 2;
+  js_value_t *argv[2];
+
+  err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
+  if (err < 0) return throw_error(env, "Failed to get callback info");
+
+  if (argc < 2) return throw_error(env, "Model and key required");
+
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
+
+  // Get key string
+  size_t key_len;
+  err = js_get_value_string_utf8(env, argv[1], NULL, 0, &key_len);
+  if (err < 0) return throw_error(env, "Invalid key");
+
+  char *key = (char *)malloc(key_len + 1);
+  if (!key) return throw_error(env, "Memory allocation failed");
+
+  err = js_get_value_string_utf8(env, argv[1], (utf8_t *)key, key_len + 1, NULL);
+  if (err < 0) {
+    free(key);
+    return throw_error(env, "Failed to read key");
+  }
+
+  // Get metadata value
+  char buf[512];
+  int32_t len = llama_model_meta_val_str(model, key, buf, sizeof(buf));
+  free(key);
+
+  if (len < 0) {
+    // Key not found, return null
+    js_value_t *null_val;
+    js_get_null(env, &null_val);
+    return null_val;
+  }
+
+  js_value_t *result;
+  err = js_create_string_utf8(env, (utf8_t *)buf, len, &result);
+  if (err < 0) return throw_error(env, "Failed to create string");
+
+  return result;
+}
+
 // getTrainingContextSize(model: Model): number
 static js_value_t *
 fn_get_training_context_size(js_env_t *env, js_callback_info_t *info) {
@@ -969,6 +1110,7 @@ addon_exports(js_env_t *env, js_value_t *exports) {
   llama_backend_init();
   llama_log_set(quiet_log_callback, NULL);
 
+  EXPORT_FUNCTION("readGgufMeta", fn_read_gguf_meta);
   EXPORT_FUNCTION("loadModel", fn_load_model);
   EXPORT_FUNCTION("freeModel", fn_free_model);
   EXPORT_FUNCTION("createContext", fn_create_context);
@@ -983,6 +1125,7 @@ addon_exports(js_env_t *env, js_value_t *exports) {
   EXPORT_FUNCTION("acceptToken", fn_accept_token);
   EXPORT_FUNCTION("isEogToken", fn_is_eog_token);
   EXPORT_FUNCTION("getEmbeddingDimension", fn_get_embedding_dimension);
+  EXPORT_FUNCTION("getModelMeta", fn_get_model_meta);
   EXPORT_FUNCTION("getTrainingContextSize", fn_get_training_context_size);
   EXPORT_FUNCTION("getContextSize", fn_get_context_size);
   EXPORT_FUNCTION("getEmbeddings", fn_get_embeddings);
