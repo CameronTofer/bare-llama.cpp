@@ -1,4 +1,5 @@
-const binding = require.addon('.')
+const path = require('bare-path')
+const binding = require.addon(path.join(import.meta.dirname, '.'))
 
 class LlamaModel {
   constructor (path, opts = {}) {
