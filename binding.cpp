@@ -13,6 +13,19 @@ static js_type_tag_t llama_model_type_tag = {0x4c4c414d41, 0x4d4f44454c};  // "L
 static js_type_tag_t llama_context_type_tag = {0x4c4c414d41, 0x435458};    // "LLAMA CTX"
 static js_type_tag_t llama_sampler_type_tag = {0x4c4c414d41, 0x53414d50};  // "LLAMA SAMP"
 
+// Wrapper structs to prevent double-free
+typedef struct {
+  struct llama_model *ptr;
+} model_wrap_t;
+
+typedef struct {
+  struct llama_context *ptr;
+} context_wrap_t;
+
+typedef struct {
+  struct llama_sampler *ptr;
+} sampler_wrap_t;
+
 // Forward declarations
 static void finalize_model(js_env_t *env, void *data, void *hint);
 static void finalize_context(js_env_t *env, void *data, void *hint);
@@ -79,11 +92,20 @@ fn_load_model(js_env_t *env, js_callback_info_t *info) {
 
   if (!model) return throw_error(env, "Failed to load model");
 
+  // Create wrapper to prevent double-free
+  model_wrap_t *wrap = (model_wrap_t *)malloc(sizeof(model_wrap_t));
+  if (!wrap) {
+    llama_model_free(model);
+    return throw_error(env, "Failed to allocate wrapper");
+  }
+  wrap->ptr = model;
+
   // Wrap in JS object
   js_value_t *result;
-  err = js_create_external(env, model, finalize_model, NULL, &result);
+  err = js_create_external(env, wrap, finalize_model, NULL, &result);
   if (err < 0) {
     llama_model_free(model);
+    free(wrap);
     return throw_error(env, "Failed to create model wrapper");
   }
 
@@ -102,14 +124,17 @@ fn_free_model(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return NULL;
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return NULL;
+  // Get wrapper from external
+  model_wrap_t *wrap;
+  err = js_get_value_external(env, argv[0], (void **)&wrap);
+  if (err < 0 || !wrap) return NULL;
 
-  llama_model_free(model);
+  // Free the model and nullify pointer to prevent double-free
+  if (wrap->ptr) {
+    llama_model_free(wrap->ptr);
+    wrap->ptr = NULL;
+  }
 
-  // Clear the external to prevent double-free
   js_value_t *null_val;
   js_get_null(env, &null_val);
   return null_val;
@@ -127,10 +152,12 @@ fn_create_context(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 1) return throw_error(env, "Model required");
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return throw_error(env, "Invalid model");
+  // Get model wrapper
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
 
   struct llama_context_params params = llama_context_default_params();
 
@@ -188,10 +215,19 @@ fn_create_context(js_env_t *env, js_callback_info_t *info) {
   struct llama_context *ctx = llama_init_from_model(model, params);
   if (!ctx) return throw_error(env, "Failed to create context");
 
+  // Create wrapper to prevent double-free
+  context_wrap_t *wrap = (context_wrap_t *)malloc(sizeof(context_wrap_t));
+  if (!wrap) {
+    llama_free(ctx);
+    return throw_error(env, "Failed to allocate wrapper");
+  }
+  wrap->ptr = ctx;
+
   js_value_t *result;
-  err = js_create_external(env, ctx, finalize_context, NULL, &result);
+  err = js_create_external(env, wrap, finalize_context, NULL, &result);
   if (err < 0) {
     llama_free(ctx);
+    free(wrap);
     return throw_error(env, "Failed to create context wrapper");
   }
 
@@ -211,12 +247,16 @@ fn_free_context(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return NULL;
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_context *ctx;
-  err = js_get_value_external(env, argv[0], (void **)&ctx);
-  if (err < 0 || !ctx) return NULL;
+  // Get wrapper from external
+  context_wrap_t *wrap;
+  err = js_get_value_external(env, argv[0], (void **)&wrap);
+  if (err < 0 || !wrap) return NULL;
 
-  llama_free(ctx);
+  // Free the context and nullify pointer to prevent double-free
+  if (wrap->ptr) {
+    llama_free(wrap->ptr);
+    wrap->ptr = NULL;
+  }
 
   js_value_t *null_val;
   js_get_null(env, &null_val);
@@ -233,9 +273,11 @@ fn_clear_memory(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
-  struct llama_context *ctx;
-  err = js_get_value_external(env, argv[0], (void **)&ctx);
-  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+  context_wrap_t *wrap;
+  err = js_get_value_external(env, argv[0], (void **)&wrap);
+  if (err < 0 || !wrap || !wrap->ptr) return throw_error(env, "Invalid context");
+  
+  struct llama_context *ctx = wrap->ptr;
 
   llama_memory_t mem = llama_get_memory(ctx);
   if (mem) {
@@ -288,9 +330,11 @@ fn_create_sampler(js_env_t *env, js_callback_info_t *info) {
   if (argc < 1) return throw_error(env, "Model required");
 
   // Get model for vocab access (needed for grammar)
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return throw_error(env, "Invalid model");
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
 
   const struct llama_vocab *vocab = llama_model_get_vocab(model);
 
@@ -346,10 +390,14 @@ fn_create_sampler(js_env_t *env, js_callback_info_t *info) {
 
   // Add grammar sampler first if specified (must filter logits before sampling)
   if (json_grammar) {
-    struct llama_sampler *grammar = llama_sampler_init_llg(vocab, "json", json_grammar);
+    // Wrap JSON schema in Lark grammar format for llguidance
+    char *wrapped_grammar = (char *)malloc(strlen(json_grammar) + 64);
+    sprintf(wrapped_grammar, "%%llguidance {}\nstart: %%json %s", json_grammar);
+    struct llama_sampler *grammar = llama_sampler_init_llg(vocab, "lark", wrapped_grammar);
     if (grammar) {
       llama_sampler_chain_add(sampler, grammar);
     }
+    free(wrapped_grammar);
     free(json_grammar);
   } else if (lark_grammar) {
     struct llama_sampler *grammar = llama_sampler_init_llg(vocab, "lark", lark_grammar);
@@ -369,10 +417,19 @@ fn_create_sampler(js_env_t *env, js_callback_info_t *info) {
     llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
   }
 
+  // Create wrapper to prevent double-free
+  sampler_wrap_t *wrap = (sampler_wrap_t *)malloc(sizeof(sampler_wrap_t));
+  if (!wrap) {
+    llama_sampler_free(sampler);
+    return throw_error(env, "Failed to allocate wrapper");
+  }
+  wrap->ptr = sampler;
+
   js_value_t *result;
-  err = js_create_external(env, sampler, finalize_sampler, NULL, &result);
+  err = js_create_external(env, wrap, finalize_sampler, NULL, &result);
   if (err < 0) {
     llama_sampler_free(sampler);
+    free(wrap);
     return throw_error(env, "Failed to create sampler wrapper");
   }
 
@@ -392,12 +449,16 @@ fn_free_sampler(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return NULL;
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_sampler *sampler;
-  err = js_get_value_external(env, argv[0], (void **)&sampler);
-  if (err < 0 || !sampler) return NULL;
+  // Get wrapper from external
+  sampler_wrap_t *wrap;
+  err = js_get_value_external(env, argv[0], (void **)&wrap);
+  if (err < 0 || !wrap) return NULL;
 
-  llama_sampler_free(sampler);
+  // Free the sampler and nullify pointer to prevent double-free
+  if (wrap->ptr) {
+    llama_sampler_free(wrap->ptr);
+    wrap->ptr = NULL;
+  }
 
   js_value_t *null_val;
   js_get_null(env, &null_val);
@@ -416,10 +477,12 @@ fn_tokenize(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 2) return throw_error(env, "Model and text required");
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return throw_error(env, "Invalid model");
+  // Get model wrapper
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
 
   // Get text
   size_t text_len;
@@ -497,10 +560,12 @@ fn_detokenize(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 2) return throw_error(env, "Model and tokens required");
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return throw_error(env, "Invalid model");
+  // Get model wrapper
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
 
   // Get tokens array
   bool is_typedarray;
@@ -558,10 +623,12 @@ fn_decode(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 2) return throw_error(env, "Context and tokens required");
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_context *ctx;
-  err = js_get_value_external(env, argv[0], (void **)&ctx);
-  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+  // Get context wrapper
+  context_wrap_t *ctx_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&ctx_wrap);
+  if (err < 0 || !ctx_wrap || !ctx_wrap->ptr) return throw_error(env, "Invalid context");
+  
+  struct llama_context *ctx = ctx_wrap->ptr;
 
   // Get tokens
   bool is_typedarray;
@@ -598,14 +665,19 @@ fn_sample(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 3) return throw_error(env, "Context, sampler, and index required");
 
-  // Skip type checks - js_add_type_tag crashes in Bare runtime
-  struct llama_context *ctx;
-  err = js_get_value_external(env, argv[0], (void **)&ctx);
-  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+  // Get context wrapper
+  context_wrap_t *ctx_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&ctx_wrap);
+  if (err < 0 || !ctx_wrap || !ctx_wrap->ptr) return throw_error(env, "Invalid context");
+  
+  struct llama_context *ctx = ctx_wrap->ptr;
 
-  struct llama_sampler *sampler;
-  err = js_get_value_external(env, argv[1], (void **)&sampler);
-  if (err < 0 || !sampler) return throw_error(env, "Invalid sampler");
+  // Get sampler wrapper
+  sampler_wrap_t *sampler_wrap;
+  err = js_get_value_external(env, argv[1], (void **)&sampler_wrap);
+  if (err < 0 || !sampler_wrap || !sampler_wrap->ptr) return throw_error(env, "Invalid sampler");
+  
+  struct llama_sampler *sampler = sampler_wrap->ptr;
 
   int32_t idx;
   err = js_get_value_int32(env, argv[2], &idx);
@@ -630,10 +702,12 @@ fn_accept_token(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
-  // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_sampler *sampler;
-  err = js_get_value_external(env, argv[0], (void **)&sampler);
-  if (err < 0 || !sampler) return throw_error(env, "Invalid sampler");
+  // Get sampler wrapper
+  sampler_wrap_t *sampler_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&sampler_wrap);
+  if (err < 0 || !sampler_wrap || !sampler_wrap->ptr) return throw_error(env, "Invalid sampler");
+  
+  struct llama_sampler *sampler = sampler_wrap->ptr;
 
   int32_t token;
   js_get_value_int32(env, argv[1], &token);
@@ -656,9 +730,11 @@ fn_is_eog_token(js_env_t *env, js_callback_info_t *info) {
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
   // Skip type check - js_add_type_tag crashes in Bare runtime
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return throw_error(env, "Invalid model");
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
 
   int32_t token;
   js_get_value_int32(env, argv[1], &token);
@@ -681,9 +757,11 @@ fn_get_embedding_dimension(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return throw_error(env, "Invalid model");
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
 
   int32_t n_embd = llama_model_n_embd(model);
 
@@ -704,9 +782,11 @@ fn_get_training_context_size(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
-  struct llama_model *model;
-  err = js_get_value_external(env, argv[0], (void **)&model);
-  if (err < 0 || !model) return throw_error(env, "Invalid model");
+  model_wrap_t *model_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&model_wrap);
+  if (err < 0 || !model_wrap || !model_wrap->ptr) return throw_error(env, "Invalid model");
+  
+  struct llama_model *model = model_wrap->ptr;
 
   int32_t n_ctx_train = llama_model_n_ctx_train(model);
 
@@ -727,9 +807,11 @@ fn_get_context_size(js_env_t *env, js_callback_info_t *info) {
   err = js_get_callback_info(env, info, &argc, argv, NULL, NULL);
   if (err < 0) return throw_error(env, "Failed to get callback info");
 
-  struct llama_context *ctx;
-  err = js_get_value_external(env, argv[0], (void **)&ctx);
-  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+  context_wrap_t *ctx_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&ctx_wrap);
+  if (err < 0 || !ctx_wrap || !ctx_wrap->ptr) return throw_error(env, "Invalid context");
+  
+  struct llama_context *ctx = ctx_wrap->ptr;
 
   uint32_t n_ctx = llama_n_ctx(ctx);
 
@@ -753,9 +835,11 @@ fn_get_embeddings(js_env_t *env, js_callback_info_t *info) {
 
   if (argc < 2) return throw_error(env, "Context and index required");
 
-  struct llama_context *ctx;
-  err = js_get_value_external(env, argv[0], (void **)&ctx);
-  if (err < 0 || !ctx) return throw_error(env, "Invalid context");
+  context_wrap_t *ctx_wrap;
+  err = js_get_value_external(env, argv[0], (void **)&ctx_wrap);
+  if (err < 0 || !ctx_wrap || !ctx_wrap->ptr) return throw_error(env, "Invalid context");
+  
+  struct llama_context *ctx = ctx_wrap->ptr;
 
   int32_t idx;
   err = js_get_value_int32(env, argv[1], &idx);
@@ -837,17 +921,35 @@ fn_set_log_level(js_env_t *env, js_callback_info_t *info) {
 // Finalizers
 static void finalize_model(js_env_t *env, void *data, void *hint) {
   (void)env; (void)hint;
-  if (data) llama_model_free((struct llama_model *)data);
+  if (data) {
+    model_wrap_t *wrap = (model_wrap_t *)data;
+    if (wrap->ptr) {
+      llama_model_free(wrap->ptr);
+    }
+    free(wrap);
+  }
 }
 
 static void finalize_context(js_env_t *env, void *data, void *hint) {
   (void)env; (void)hint;
-  if (data) llama_free((struct llama_context *)data);
+  if (data) {
+    context_wrap_t *wrap = (context_wrap_t *)data;
+    if (wrap->ptr) {
+      llama_free(wrap->ptr);
+    }
+    free(wrap);
+  }
 }
 
 static void finalize_sampler(js_env_t *env, void *data, void *hint) {
   (void)env; (void)hint;
-  if (data) llama_sampler_free((struct llama_sampler *)data);
+  if (data) {
+    sampler_wrap_t *wrap = (sampler_wrap_t *)data;
+    if (wrap->ptr) {
+      llama_sampler_free(wrap->ptr);
+    }
+    free(wrap);
+  }
 }
 
 // Helper macro for defining functions
