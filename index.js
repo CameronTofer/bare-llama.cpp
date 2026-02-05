@@ -1,5 +1,5 @@
 const path = require('bare-path')
-const binding = require.addon(path.join(import.meta.dirname, '.'))
+const binding = require.addon(path.join(__dirname, '.'))
 
 class LlamaModel {
   constructor (path, opts = {}) {
@@ -141,6 +141,10 @@ function getModelName (path) {
   return readGgufMeta(path, 'general.name')
 }
 
+function systemInfo () {
+  return binding.systemInfo()
+}
+
 module.exports = {
   LlamaModel,
   LlamaContext,
@@ -150,5 +154,6 @@ module.exports = {
   setQuiet,
   readGgufMeta,
   getModelName,
+  systemInfo,
   binding
 }

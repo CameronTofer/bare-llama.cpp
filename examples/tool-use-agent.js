@@ -1,5 +1,5 @@
 const { LlamaModel, LlamaContext, LlamaSampler, generate, setQuiet } = require('..')
-const { loadModel, applyTemplate } = require('./ollama.js')
+const { loadModel, applyTemplate } = require('../lib/ollama.js')
 
 // Define available tools
 const tools = [

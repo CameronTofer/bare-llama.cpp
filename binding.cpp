@@ -1012,6 +1012,16 @@ fn_get_embeddings(js_env_t *env, js_callback_info_t *info) {
   return result;
 }
 
+// systemInfo(): string - Get system info from llama.cpp
+static js_value_t *
+fn_system_info(js_env_t *env, js_callback_info_t *info) {
+  const char *sys_info = llama_print_system_info();
+  js_value_t *result;
+  int err = js_create_string_utf8(env, (utf8_t *)sys_info, strlen(sys_info), &result);
+  if (err < 0) return throw_error(env, "Failed to create string");
+  return result;
+}
+
 // Log level control
 static int g_log_level = 2;  // 0=off, 1=errors only, 2=all (default)
 
@@ -1130,6 +1140,7 @@ addon_exports(js_env_t *env, js_value_t *exports) {
   EXPORT_FUNCTION("getContextSize", fn_get_context_size);
   EXPORT_FUNCTION("getEmbeddings", fn_get_embeddings);
   EXPORT_FUNCTION("setLogLevel", fn_set_log_level);
+  EXPORT_FUNCTION("systemInfo", fn_system_info);
 
   return exports;
 }

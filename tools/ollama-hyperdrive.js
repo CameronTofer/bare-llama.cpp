@@ -5,7 +5,7 @@ const Hyperswarm = require('hyperswarm')
 const Signals = require('bare-signals')
 const fs = require('bare-fs')
 const path = require('bare-path')
-const { getOllamaDir, getManifest, listModels, getModelInfo } = require('../examples/ollama-models.js')
+const { getOllamaDir, getManifest, listModels, getModelInfo } = require('../lib/ollama-models.js')
 
 // Map mediaType to filename
 const LAYER_FILENAMES = {

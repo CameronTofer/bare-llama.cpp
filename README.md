@@ -16,7 +16,7 @@ Run LLM inference directly in your Bare JavaScript applications with GPU acceler
 Clone with submodules:
 
 ```bash
-git clone --recursive https://github.com/user/bare-llama.cpp
+git clone --recursive https://github.com/CameronTofer/bare-llama.cpp
 cd bare-llama.cpp
 ```
 
@@ -30,7 +30,6 @@ Install dependencies and build:
 
 ```bash
 npm install
-npm run prebuild
 ```
 
 Or manually:
@@ -76,7 +75,7 @@ const ctx = new LlamaContext(model, {
 })
 
 // Create sampler
-const sampler = new LlamaSampler({
+const sampler = new LlamaSampler(model, {
   temp: 0.7,    // Temperature (0 = greedy)
   topK: 40,     // Top-K sampling
   topP: 0.95    // Top-P (nucleus) sampling
@@ -92,14 +91,95 @@ ctx.free()
 model.free()
 ```
 
-See `examples/` for more:
-- `basic.js` - Simple generation using the high-level API
-- `lowlevel.js` - Token-by-token generation with full control
+### Embeddings
+
+```javascript
+const { LlamaModel, LlamaContext, setQuiet } = require('bare-llama')
+
+setQuiet(true)
+
+const model = new LlamaModel('./embedding-model.gguf', { nGpuLayers: 99 })
+const ctx = new LlamaContext(model, {
+  contextSize: 512,
+  embeddings: true,
+  poolingType: 2  // 0=unspecified, 1=none, 2=mean, 3=cls, 4=last
+})
+
+const tokens = model.tokenize('Hello world', true)
+ctx.decode(tokens)
+const embedding = ctx.getEmbeddings(-1)  // Float32Array
+
+// Reuse context for multiple embeddings
+ctx.clearMemory()
+const tokens2 = model.tokenize('Another text', true)
+ctx.decode(tokens2)
+const embedding2 = ctx.getEmbeddings(-1)
+
+ctx.free()
+model.free()
+```
+
+### Constrained Generation
+
+```javascript
+const { LlamaModel, LlamaContext, LlamaSampler, generate, setQuiet } = require('bare-llama')
+
+setQuiet(true)
+
+const model = new LlamaModel('./model.gguf', { nGpuLayers: 99 })
+const ctx = new LlamaContext(model, { contextSize: 2048 })
+
+// JSON schema constraint (requires llguidance)
+const schema = JSON.stringify({
+  type: 'object',
+  properties: { name: { type: 'string' }, age: { type: 'integer' } },
+  required: ['name', 'age']
+})
+const sampler = new LlamaSampler(model, { temp: 0, json: schema })
+
+// Lark grammar constraint
+const sampler2 = new LlamaSampler(model, { temp: 0, lark: 'start: "yes" | "no"' })
+```
+
+## Examples
+
+| Example | Description |
+|---------|-------------|
+| `examples/text-generation.js` | High-level `generate()` API |
+| `examples/token-by-token.js` | Manual tokenize/sample/decode loop |
+| `examples/cosine-similarity.js` | Embeddings + semantic similarity |
+| `examples/json-constrained-output.js` | JSON schema constrained generation |
+| `examples/lark-constrained-output.js` | Lark grammar constrained generation |
+| `examples/tool-use-agent.js` | Agentic tool calling with multi-turn |
 
 Run examples with:
+
 ```bash
-bare examples/basic.js -- /path/to/model.gguf
+bare examples/text-generation.js -- /path/to/model.gguf
 ```
+
+## Testing
+
+Tests use [brittle](https://github.com/holepunchto/brittle) and skip gracefully when models aren't available.
+
+```bash
+npm test
+```
+
+Model-dependent tests require [Ollama](https://ollama.com) models installed locally:
+
+```bash
+ollama pull llama3.2:1b        # generation tests
+ollama pull nomic-embed-text   # embedding tests
+```
+
+## Benchmarks
+
+```bash
+npm run bench
+```
+
+Results are saved to `bench/results/` as JSON with full metadata (llama.cpp version, system info, platform). History is tracked in JSONL files for comparison across runs.
 
 ## API Reference
 
@@ -113,11 +193,18 @@ new LlamaModel(path, options?)
 |--------|------|---------|-------------|
 | `nGpuLayers` | number | 0 | Number of layers to offload to GPU |
 
+**Properties:**
+
+- `name` - Model name from metadata
+- `embeddingDimension` - Embedding vector size
+- `trainingContextSize` - Training context length
+
 **Methods:**
 
 - `tokenize(text, addBos?)` - Convert text to tokens (Int32Array)
 - `detokenize(tokens)` - Convert tokens back to text
 - `isEogToken(token)` - Check if token is end-of-generation
+- `getMeta(key)` - Get model metadata by key
 - `free()` - Release model resources
 
 ### LlamaContext
@@ -130,16 +217,24 @@ new LlamaContext(model, options?)
 |--------|------|---------|-------------|
 | `contextSize` | number | 512 | Maximum context length |
 | `batchSize` | number | 512 | Batch size for processing |
+| `embeddings` | boolean | false | Enable embedding mode |
+| `poolingType` | number | 0 | Pooling strategy (0=unspecified, 1=none, 2=mean, 3=cls, 4=last) |
+
+**Properties:**
+
+- `contextSize` - Actual context size
 
 **Methods:**
 
 - `decode(tokens)` - Process tokens through the model
+- `getEmbeddings(idx)` - Get embedding vector (Float32Array)
+- `clearMemory()` - Clear context for reuse (faster than creating new context)
 - `free()` - Release context resources
 
 ### LlamaSampler
 
 ```javascript
-new LlamaSampler(options?)
+new LlamaSampler(model, options?)
 ```
 
 | Option | Type | Default | Description |
@@ -147,6 +242,8 @@ new LlamaSampler(options?)
 | `temp` | number | 0 | Temperature (0 = greedy sampling) |
 | `topK` | number | 40 | Top-K sampling parameter |
 | `topP` | number | 0.95 | Top-P (nucleus) sampling parameter |
+| `json` | string | - | JSON schema constraint (requires llguidance) |
+| `lark` | string | - | Lark grammar constraint (requires llguidance) |
 
 **Methods:**
 
@@ -162,18 +259,32 @@ generate(model, ctx, sampler, prompt, maxTokens?)
 
 Convenience function for simple text generation. Returns the generated text (not including the prompt).
 
+### Utility Functions
+
+- `setQuiet(quiet?)` - Suppress llama.cpp output
+- `setLogLevel(level)` - Set log level (0=off, 1=errors, 2=all)
+- `readGgufMeta(path, key)` - Read GGUF metadata without loading the model
+- `getModelName(path)` - Get model name from GGUF file
+- `systemInfo()` - Get hardware/instruction set info (AVX, NEON, Metal, CUDA)
+
+## Project Structure
+
+```
+index.js              Main module
+binding.cpp           C++ native bindings
+lib/
+  ollama-models.js    Ollama model discovery
+  ollama.js           GGUF metadata + Jinja chat templates
+test/                 Brittle test suite
+bench/                Benchmark system
+examples/             Usage examples
+tools/
+  ollama-hyperdrive.js  P2P model distribution (standalone CLI)
+```
+
 ## Models
 
-This addon works with GGUF format models. You can find models at:
-
-- [Hugging Face](https://huggingface.co/models?search=gguf)
-- [TheBloke's models](https://huggingface.co/TheBloke)
-
-Example models to try:
-
-- `TinyLlama-1.1B-Chat-v1.0.Q4_K_M.gguf` - Small, fast
-- `Mistral-7B-Instruct-v0.2.Q4_K_M.gguf` - Good quality
-- `Llama-2-13B-chat.Q4_K_M.gguf` - Higher quality
+This addon works with GGUF format models. You can use models from [Ollama](https://ollama.com) (auto-detected from `~/.ollama/models`) or download GGUF files directly from [Hugging Face](https://huggingface.co/models?search=gguf).
 
 ## Platform Support
 

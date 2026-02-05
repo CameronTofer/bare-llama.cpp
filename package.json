@@ -30,32 +30,30 @@
   },
   "files": [
     "index.js",
-    "prebuilds/*/*.bare"
+    "prebuilds",
+    "CMakeLists.txt"
   ],
   "scripts": {
     "clean": "rm -rf build prebuilds",
     "prepare": "bare-make generate && bare-make build && bare-make install",
-
-    "update-llama": "git submodule update --remote vendor/llama.cpp",
-    "test": "bare examples/regression-test.js",
+    "update-llama.cpp": "git submodule update --remote vendor/llama.cpp",
+    "test": "brittle-bare test/*.js",
+    "bench": "bare bench/run.js",
     "prebuild:ios": "npm run prebuild:ios-device && npm run prebuild:ios-sim-arm64 && npm run prebuild:ios-sim-x64",
     "prebuild:ios-device": "rm -rf build && bare-make generate --platform ios --arch arm64 && bare-make build && bare-make install",
     "prebuild:ios-sim-arm64": "rm -rf build && bare-make generate --platform ios --arch arm64 --simulator && bare-make build && bare-make install",
     "prebuild:ios-sim-x64": "rm -rf build && bare-make generate --platform ios --arch x64 --simulator && bare-make build && bare-make install"
   },
   "dependencies": {
-    "bare-path": "^3.0.0"
+    "bare-path": "^3.0.0",
+    "cmake-bare": "^1.1.2"
   },
   "devDependencies": {
     "@huggingface/jinja": "^0.5.5",
     "bare-fs": "^4.5.3",
     "bare-os": "^3.6.2",
     "bare-path": "^3.0.0",
-    "bare-signals": "^4.2.0",
-    "cmake-bare": "^1.1.2",
-    "corestore": "^7.7.0",
-    "hyperdrive": "^13.2.1",
-    "hyperswarm": "^4.8.4",
+    "brittle": "^3.19.1",
     "paparam": "^1.10.0"
   }
 }
