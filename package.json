@@ -60,7 +60,7 @@
     "test": "npm run test:bare",
     "test:bare": "brittle-bare test/*.js",
     "test:node": "brittle test/*.js",
-    "bench": "bare bench/run.js",
+    "bench": "bare bench/run.js"
   },
   "dependencies": {
     "require-addon": "^1.0.0"
