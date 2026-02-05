@@ -292,7 +292,13 @@ This addon works with GGUF format models. You can use models from [Ollama](https
 |----------|--------------|-------------|
 | macOS | arm64, x64 | Metal |
 | Linux | x64, arm64 | CUDA (if available) |
-| Windows | x64 | CUDA (if available) |
+| Windows | x64, arm64 | CUDA (if available) |
+| iOS | arm64 | Metal |
+| Android | arm64, arm, x64, ia32 | - |
+
+### Constrained generation (llguidance)
+
+JSON schema and Lark grammar constraints require [llguidance](https://github.com/guidance-ai/llguidance), which is built from Rust source. This is enabled automatically on native (non-cross-compiled) builds. Cross-compiled targets (iOS, Android, Windows arm64) do not include llguidance — constrained generation is unavailable on those platforms.
 
 ## License
 

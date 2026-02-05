@@ -14,8 +14,9 @@ set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
 set(LLAMA_HTTPLIB OFF CACHE BOOL "" FORCE)
 
-# llguidance requires Rust/Cargo - disable for cross-compilation
-if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+# llguidance requires Rust/Cargo and cannot cross-compile,
+# so disable it when the target architecture differs from the host
+if(CMAKE_CROSSCOMPILING)
   set(LLAMA_LLGUIDANCE OFF CACHE BOOL "" FORCE)
 else()
   set(LLAMA_LLGUIDANCE ON CACHE BOOL "" FORCE)
