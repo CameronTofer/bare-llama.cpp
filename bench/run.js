@@ -59,7 +59,7 @@ function saveResult (name, result) {
   return filename
 }
 
-console.log('# bare-llama Benchmark\n')
+console.log('# bare-llama.cpp Benchmark\n')
 
 const metadata = getMetadata()
 console.log('Date:', metadata.date)

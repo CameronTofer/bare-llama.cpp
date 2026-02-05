@@ -1,5 +1,5 @@
 {
-  "name": "bare-llama",
+  "name": "bare-llama-cpp",
   "version": "0.1.0",
   "description": "llama.cpp bindings for Bare",
   "main": "index.js",
@@ -25,28 +25,45 @@
     "metal",
     "cuda"
   ],
+  "imports": {
+    "fs": {
+      "bare": "bare-fs",
+      "default": "fs"
+    },
+    "fs/*": {
+      "bare": "bare-fs/*",
+      "default": "fs/*"
+    },
+    "path": {
+      "bare": "bare-path",
+      "default": "path"
+    },
+    "os": {
+      "bare": "bare-os",
+      "default": "os"
+    }
+  },
   "engines": {
     "bare": ">=1.16.0"
   },
   "files": [
     "index.js",
+    "binding.js",
+    "binding.cpp",
     "prebuilds",
     "CMakeLists.txt"
   ],
   "scripts": {
     "clean": "rm -rf build prebuilds",
-    "prepare": "bare-make generate && bare-make build && bare-make install",
+    "prepare": "test -d vendor/llama.cpp/.git && bare-make generate && bare-make build && bare-make install || true",
     "update-llama.cpp": "git submodule update --remote vendor/llama.cpp",
-    "test": "brittle-bare test/*.js",
+    "test": "npm run test:bare",
+    "test:bare": "brittle-bare test/*.js",
+    "test:node": "brittle test/*.js",
     "bench": "bare bench/run.js",
-    "prebuild:ios": "npm run prebuild:ios-device && npm run prebuild:ios-sim-arm64 && npm run prebuild:ios-sim-x64",
-    "prebuild:ios-device": "rm -rf build && bare-make generate --platform ios --arch arm64 && bare-make build && bare-make install",
-    "prebuild:ios-sim-arm64": "rm -rf build && bare-make generate --platform ios --arch arm64 --simulator && bare-make build && bare-make install",
-    "prebuild:ios-sim-x64": "rm -rf build && bare-make generate --platform ios --arch x64 --simulator && bare-make build && bare-make install"
   },
   "dependencies": {
-    "bare-path": "^3.0.0",
-    "cmake-bare": "^1.1.2"
+    "require-addon": "^1.0.0"
   },
   "devDependencies": {
     "@huggingface/jinja": "^0.5.5",
@@ -54,6 +71,9 @@
     "bare-os": "^3.6.2",
     "bare-path": "^3.0.0",
     "brittle": "^3.19.1",
+    "bare-compat-napi": "^1.3.5",
+    "cmake-bare": "^1.1.2",
+    "cmake-napi": "^1.2.1",
     "paparam": "^1.10.0"
   }
 }

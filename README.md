@@ -1,4 +1,4 @@
-# bare-llama
+# bare-llama.cpp
 
 Native [llama.cpp](https://github.com/ggerganov/llama.cpp) bindings for [Bare](https://github.com/holepunchto/bare).
 

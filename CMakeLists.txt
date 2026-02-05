@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 find_package(cmake-bare REQUIRED PATHS node_modules/cmake-bare)
+find_package(cmake-napi REQUIRED PATHS node_modules/cmake-napi)
 
 project(bare_llama C CXX)
 
@@ -27,16 +28,16 @@ endif()
 add_subdirectory(vendor/llama.cpp)
 
 # Create the bare addon
-add_bare_module(llama)
+add_bare_module(bare_llama_bare)
 
 target_sources(
-  ${llama}
+  ${bare_llama_bare}
   PRIVATE
     binding.cpp
 )
 
 target_include_directories(
-  ${llama}
+  ${bare_llama_bare}
   PRIVATE
     vendor/llama.cpp/include
     vendor/llama.cpp/ggml/include
@@ -44,8 +45,46 @@ target_include_directories(
 )
 
 target_link_libraries(
-  ${llama}
+  ${bare_llama_bare}
   PRIVATE
     llama
     common
+)
+
+# Create the Node.js NAPI addon
+add_napi_module(bare_llama_node)
+
+target_sources(
+  ${bare_llama_node}
+  PRIVATE
+    binding.cpp
+)
+
+target_compile_definitions(
+  ${bare_llama_node}
+  PRIVATE
+    NAPI_VERSION=9
+)
+
+target_include_directories(
+  ${bare_llama_node}
+  PRIVATE
+    vendor/llama.cpp/include
+    vendor/llama.cpp/ggml/include
+    vendor/llama.cpp/common
+)
+
+target_link_libraries(
+  ${bare_llama_node}
+  PRIVATE
+    llama
+    common
+)
+
+resolve_node_module(bare-compat-napi compat)
+
+target_include_directories(
+  ${bare_llama_node}
+  PRIVATE
+    "${compat}/include"
 )

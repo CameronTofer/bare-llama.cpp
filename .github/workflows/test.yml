@@ -1,0 +1,44 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin
+          - os: ubuntu-22.04
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    name: test-${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - run: |
+          sudo apt update
+          sudo apt install -y nasm
+        if: ${{ matrix.platform == 'linux' }}
+
+      - run: pip3 install meson
+        if: ${{ matrix.platform == 'linux' }}
+
+      - run: brew install meson nasm llvm@20
+        if: ${{ matrix.platform == 'darwin' }}
+
+      - run: npm install -g bare-runtime bare-make
+
+      - run: npm install
+
+      - run: npm test
