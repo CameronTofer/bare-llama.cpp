@@ -1,8 +1,5 @@
 name: Prebuild
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 jobs:
   prebuild:
@@ -82,7 +79,7 @@ jobs:
         env:
           PATH: C:\tools\msys64\usr\bin
         if: ${{ matrix.platform == 'win32' }}
-      - run: npm install -g bare-runtime bare-make
+      - run: npm install -g bare-make
       - run: npm install
       - run: bare-make generate --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ matrix.flags }}
       - run: bare-make build
@@ -92,8 +89,8 @@ jobs:
           name: ${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.tags }}
           path: prebuilds/*
   merge:
-    runs-on: ubuntu-latest
     needs: prebuild
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:

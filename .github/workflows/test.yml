@@ -4,41 +4,49 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-
 jobs:
   test:
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            platform: darwin
           - os: ubuntu-22.04
             platform: linux
+            arch: x64
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+          - os: windows-2022
+            platform: win32
+            arch: x64
     runs-on: ${{ matrix.os }}
-    name: test-${{ matrix.platform }}
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-
       - run: |
           sudo apt update
           sudo apt install -y nasm
         if: ${{ matrix.platform == 'linux' }}
-
       - run: pip3 install meson
         if: ${{ matrix.platform == 'linux' }}
-
       - run: brew install meson nasm llvm@20
         if: ${{ matrix.platform == 'darwin' }}
-
+      - run: choco upgrade llvm
+        if: ${{ matrix.platform == 'win32' }}
+      - run: choco install --ignore-package-exit-codes meson nasm msys2
+        if: ${{ matrix.platform == 'win32' }}
+      - run: pacman --noconfirm -S git make ninja pkgconf
+        shell: C:\tools\msys64\usr\bin\bash.exe -e {0}
+        env:
+          PATH: C:\tools\msys64\usr\bin
+        if: ${{ matrix.platform == 'win32' }}
       - run: npm install -g bare-runtime bare-make
-
       - run: npm install
-
+      - run: bare-make generate --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --debug
+      - run: bare-make build
+      - run: bare-make install
       - run: npm test

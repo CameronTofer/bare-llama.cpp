@@ -55,7 +55,6 @@
   ],
   "scripts": {
     "clean": "rm -rf build prebuilds",
-    "prepare": "test -d vendor/llama.cpp/.git && bare-make generate && bare-make build && bare-make install || true",
     "update-llama.cpp": "git submodule update --remote vendor/llama.cpp",
     "test": "npm run test:bare",
     "test:bare": "brittle-bare test/*.js",
