@@ -62,7 +62,7 @@ class LlamaContext {
     return binding.getEmbeddings(this._handle, idx)
   }
 
-  clearMemory () {
+  clear () {
     binding.clearMemory(this._handle)
   }
 

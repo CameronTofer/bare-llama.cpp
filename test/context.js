@@ -23,12 +23,25 @@ test('decode accepts Int32Array', { skip: !loaded }, function (t) {
   ctx.free()
 })
 
-test('clearMemory does not throw', { skip: !loaded }, function (t) {
-  const ctx = new LlamaContext(loaded.model, { contextSize: 512 })
-  const tokens = loaded.model.tokenize('Hello', true)
-  ctx.decode(tokens)
-  ctx.clearMemory()
-  t.pass('clearMemory did not throw')
+test('clear() resets context for fresh prompt', { skip: !loaded }, function (t) {
+  const { LlamaSampler } = require('..')
+  const ctx = new LlamaContext(loaded.model, { contextSize: 2048 })
+  const sampler = new LlamaSampler(loaded.model, { temp: 0 })
+
+  // Decode a prompt and sample a token
+  const tokens1 = loaded.model.tokenize('The capital of France is', true)
+  ctx.decode(tokens1)
+  const token1 = sampler.sample(ctx, -1)
+
+  // Clear and decode the same prompt again
+  ctx.clear()
+  const tokens2 = loaded.model.tokenize('The capital of France is', true)
+  ctx.decode(tokens2)
+  const token2 = sampler.sample(ctx, -1)
+
+  t.is(token1, token2, 'same prompt after clear() produces same token')
+
+  sampler.free()
   ctx.free()
 })
 

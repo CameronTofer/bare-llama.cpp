@@ -15,7 +15,6 @@ function cosineSimilarity (a, b) {
 }
 
 function embed (model, ctx, text) {
-  ctx.clearMemory()
   const tokens = model.tokenize(text, true)
   ctx.decode(tokens)
   return new Float32Array(ctx.getEmbeddings(-1))
@@ -47,7 +46,7 @@ test('semantic similarity ordering', { skip: !loaded }, function (t) {
   ctx.free()
 })
 
-test('clearMemory reuse produces consistent results', { skip: !loaded }, function (t) {
+test('reuse produces consistent results', { skip: !loaded }, function (t) {
   const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 2 })
   const emb1 = embed(loaded.model, ctx, 'Hello world')
   const emb2 = embed(loaded.model, ctx, 'Hello world')

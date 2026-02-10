@@ -35,12 +35,11 @@ module.exports = function runEmbeddingsBench (model, numTexts = 100) {
   }
   const newCtxTime = Date.now() - start1
 
-  // Method 2: Reuse context with clearMemory
+  // Method 2: Reuse context
   const ctx = new LlamaContext(model, { contextSize: 512, embeddings: true, poolingType: 2 })
 
   const start2 = Date.now()
   for (const text of texts) {
-    ctx.clearMemory()
     const tokens = model.tokenize(text, true)
     ctx.decode(tokens)
     ctx.getEmbeddings(-1)
