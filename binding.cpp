@@ -290,7 +290,7 @@ fn_create_context(js_env_t *env, js_callback_info_t *info) {
       }
     }
 
-    // poolingType (0=unspecified, 1=none, 2=mean, 3=cls, 4=last, 5=rank)
+    // poolingType (-1=unspecified, 0=none, 1=mean, 2=cls, 3=last, 4=rank)
     err = js_has_named_property(env, opts, "poolingType", &has_prop);
     if (err == 0 && has_prop) {
       err = js_get_named_property(env, opts, "poolingType", &val);
@@ -995,18 +995,26 @@ fn_get_embeddings(js_env_t *env, js_callback_info_t *info) {
   if (!embeddings) return throw_error(env, "Failed to get embeddings (context may not have embeddings enabled)");
 
   const struct llama_model *model = llama_get_model(ctx);
-  int32_t n_embd = llama_model_n_embd(model);
+
+  // For RANK pooling, the output is n_cls_out floats (typically 1 relevance score),
+  // not n_embd. Reading n_embd floats would be a buffer over-read.
+  int32_t n_out;
+  if (llama_pooling_type(ctx) == LLAMA_POOLING_TYPE_RANK) {
+    n_out = (int32_t)llama_model_n_cls_out(model);
+  } else {
+    n_out = llama_model_n_embd(model);
+  }
 
   // Create Float32Array
   js_value_t *array_buffer;
   void *data;
-  err = js_create_arraybuffer(env, n_embd * sizeof(float), &data, &array_buffer);
+  err = js_create_arraybuffer(env, n_out * sizeof(float), &data, &array_buffer);
   if (err < 0) return throw_error(env, "Failed to create array buffer");
 
-  memcpy(data, embeddings, n_embd * sizeof(float));
+  memcpy(data, embeddings, n_out * sizeof(float));
 
   js_value_t *result;
-  err = js_create_typedarray(env, js_float32array, n_embd, array_buffer, 0, &result);
+  err = js_create_typedarray(env, js_float32array, n_out, array_buffer, 0, &result);
   if (err < 0) return throw_error(env, "Failed to create typed array");
 
   return result;
