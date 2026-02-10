@@ -18,12 +18,25 @@ const LAYER_FILENAMES = {
   'application/vnd.ollama.image.adapter': 'adapter.gguf'
 }
 
-// Parse an Ollama model name (e.g., "llama3:latest", "qwen2:7b")
+// Parse an Ollama model name (e.g., "llama3:latest", "qwen2:7b", "MedAIBase/Qwen3-VL-Reranker:2b")
 function parseModelName (name) {
   const parts = name.split(':')
+  const fullModel = parts[0]
+  const tag = parts[1] || 'latest'
+
+  const slashIdx = fullModel.indexOf('/')
+  if (slashIdx !== -1) {
+    return {
+      namespace: fullModel.slice(0, slashIdx),
+      model: fullModel.slice(slashIdx + 1),
+      tag
+    }
+  }
+
   return {
-    model: parts[0],
-    tag: parts[1] || 'latest'
+    namespace: 'library',
+    model: fullModel,
+    tag
   }
 }
 
