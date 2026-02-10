@@ -23,7 +23,7 @@ test('decode accepts Int32Array', { skip: !loaded }, function (t) {
   ctx.free()
 })
 
-test('clear() resets context for fresh prompt', { skip: !loaded }, function (t) {
+test('clearMemory() resets context for fresh prompt', { skip: !loaded }, function (t) {
   const { LlamaSampler } = require('..')
   const ctx = new LlamaContext(loaded.model, { contextSize: 2048 })
   const sampler = new LlamaSampler(loaded.model, { temp: 0 })
@@ -34,7 +34,7 @@ test('clear() resets context for fresh prompt', { skip: !loaded }, function (t) 
   const token1 = sampler.sample(ctx, -1)
 
   // Clear and decode the same prompt again
-  ctx.clear()
+  ctx.clearMemory()
   const tokens2 = loaded.model.tokenize('The capital of France is', true)
   ctx.decode(tokens2)
   const token2 = sampler.sample(ctx, -1)
