@@ -21,21 +21,21 @@ function embed (model, ctx, text) {
 }
 
 test('getEmbeddings returns Float32Array', { skip: !loaded }, function (t) {
-  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 2 })
+  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 1 })
   const emb = embed(loaded.model, ctx, 'Hello')
   t.ok(emb instanceof Float32Array, 'returns Float32Array')
   ctx.free()
 })
 
 test('dimension matches model', { skip: !loaded }, function (t) {
-  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 2 })
+  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 1 })
   const emb = embed(loaded.model, ctx, 'Hello')
   t.is(emb.length, loaded.model.embeddingDimension, 'dimension matches')
   ctx.free()
 })
 
 test('semantic similarity ordering', { skip: !loaded }, function (t) {
-  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 2 })
+  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 1 })
   const cat = embed(loaded.model, ctx, 'The cat sat on the mat.')
   const feline = embed(loaded.model, ctx, 'A feline rested on the rug.')
   const ml = embed(loaded.model, ctx, 'Machine learning is a subset of artificial intelligence.')
@@ -47,7 +47,7 @@ test('semantic similarity ordering', { skip: !loaded }, function (t) {
 })
 
 test('reuse produces consistent results', { skip: !loaded }, function (t) {
-  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 2 })
+  const ctx = new LlamaContext(loaded.model, { contextSize: 512, embeddings: true, poolingType: 1 })
   const emb1 = embed(loaded.model, ctx, 'Hello world')
   const emb2 = embed(loaded.model, ctx, 'Hello world')
   const sim = cosineSimilarity(emb1, emb2)

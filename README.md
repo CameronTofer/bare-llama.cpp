@@ -102,7 +102,7 @@ const model = new LlamaModel('./embedding-model.gguf', { nGpuLayers: 99 })
 const ctx = new LlamaContext(model, {
   contextSize: 512,
   embeddings: true,
-  poolingType: 2  // 0=unspecified, 1=none, 2=mean, 3=cls, 4=last
+  poolingType: 1  // -1=unspecified, 0=none, 1=mean, 2=cls, 3=last, 4=rank
 })
 
 const tokens = model.tokenize('Hello world', true)
@@ -114,6 +114,49 @@ ctx.clearMemory()
 const tokens2 = model.tokenize('Another text', true)
 ctx.decode(tokens2)
 const embedding2 = ctx.getEmbeddings(-1)
+
+ctx.free()
+model.free()
+```
+
+### Reranking
+
+Cross-encoder reranking scores how relevant a document is to a query. Use a reranker model (e.g. BGE reranker) with `poolingType: 4` (rank).
+
+**Important:** You must call `ctx.clearMemory()` before each scoring to clear the KV cache. Without this, stale context from previous pairs corrupts the scores.
+
+```javascript
+const { LlamaModel, LlamaContext, setQuiet } = require('bare-llama')
+
+setQuiet(true)
+
+const model = new LlamaModel('./bge-reranker-v2-m3.gguf', { nGpuLayers: 99 })
+const ctx = new LlamaContext(model, {
+  contextSize: 512,
+  embeddings: true,
+  poolingType: 4  // rank pooling (required for rerankers)
+})
+
+function rerank (query, document) {
+  ctx.clearMemory()  // critical: clear KV cache before each pair
+  const tokens = model.tokenize(query + '\n' + document, true)
+  ctx.decode(tokens)
+  return ctx.getEmbeddings(0)[0]  // single float score
+}
+
+const query = 'What is machine learning?'
+const docs = [
+  'Machine learning is a branch of AI that learns from data.',
+  'The recipe calls for two cups of flour and one egg.'
+]
+
+const scored = docs
+  .map((doc, i) => ({ i, score: rerank(query, doc) }))
+  .sort((a, b) => b.score - a.score)
+
+for (const { i, score } of scored) {
+  console.log(`[${score.toFixed(4)}] ${docs[i]}`)
+}
 
 ctx.free()
 model.free()
@@ -171,6 +214,7 @@ Model-dependent tests require [Ollama](https://ollama.com) models installed loca
 ```bash
 ollama pull llama3.2:1b        # generation tests
 ollama pull nomic-embed-text   # embedding tests
+ollama pull qllama/bge-reranker-v2-m3  # reranking tests
 ```
 
 ## Benchmarks
@@ -218,7 +262,7 @@ new LlamaContext(model, options?)
 | `contextSize` | number | 512 | Maximum context length |
 | `batchSize` | number | 512 | Batch size for processing |
 | `embeddings` | boolean | false | Enable embedding mode |
-| `poolingType` | number | 0 | Pooling strategy (0=unspecified, 1=none, 2=mean, 3=cls, 4=last) |
+| `poolingType` | number | -1 | Pooling strategy (-1=unspecified, 0=none, 1=mean, 2=cls, 3=last, 4=rank) |
 
 **Properties:**
 
