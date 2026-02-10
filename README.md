@@ -300,6 +300,8 @@ This addon works with GGUF format models. You can use models from [Ollama](https
 
 JSON schema and Lark grammar constraints require [llguidance](https://github.com/guidance-ai/llguidance), which is built from Rust source. This is enabled automatically on native (non-cross-compiled) builds. Cross-compiled targets (iOS, Android, Windows arm64) do not include llguidance — constrained generation is unavailable on those platforms.
 
+**Note:** Lark grammar constraints are currently not working correctly — llguidance does not appear to enforce token constraints as expected (e.g. allowing "Yes" when the grammar only permits "yes"). JSON schema constraints work fine.
+
 ## License
 
 MIT

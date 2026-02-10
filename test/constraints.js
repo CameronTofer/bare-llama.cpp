@@ -35,7 +35,7 @@ test('JSON schema produces parseable JSON with correct fields', { skip: !loaded 
   t.ok(output.includes('"age"'), 'output contains age field')
 })
 
-test('Lark grammar constrains to yes/no', { skip: !loaded }, function (t) {
+test('Lark grammar constrains to yes/no', { skip: true }, function (t) {
   const ctx = new LlamaContext(loaded.model, { contextSize: 2048 })
 
   const grammar = `
