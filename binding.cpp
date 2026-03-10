@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#define NOMINMAX
+#endif
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
